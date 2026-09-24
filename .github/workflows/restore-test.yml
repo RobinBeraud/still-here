@@ -1,0 +1,71 @@
+name: Restore test
+
+# Un backup n'est considéré valide qu'après une restauration réelle (docs/DISASTER_RECOVERY.md).
+# Restaure le dernier dump dans une base isolée éphémère et compare les volumes aux comptages de référence.
+on:
+  schedule:
+    - cron: "43 4 * * 1" # hebdomadaire
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      pg:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: restore
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION || 'auto' }}
+      PGURL: postgresql://postgres:restore@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Fetch, verify and decrypt the latest dump
+        run: |
+          set -euo pipefail
+          KEY=$(aws s3api list-objects-v2 --bucket "$BACKUP_S3_BUCKET" --prefix database/daily/ --endpoint-url "$BACKUP_S3_ENDPOINT" --query 'sort_by(Contents,&LastModified)[-1].Key' --output text)
+          echo "KEY=$KEY" >> "$GITHUB_ENV"
+          aws s3api get-object --bucket "$BACKUP_S3_BUCKET" --key "$KEY" --endpoint-url "$BACKUP_S3_ENDPOINT" db.dump.gpg > meta.json
+          jq -r '.Metadata.counts' meta.json | base64 -d > expected.json
+          EXPECTED_SHA=$(jq -r '.Metadata.sha256' meta.json)
+          echo "$EXPECTED_SHA  db.dump.gpg" | sha256sum -c -
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" -o db.dump -d db.dump.gpg
+
+      - name: Restore into an isolated database
+        run: |
+          set -uo pipefail
+          docker run --rm --network host -v "$PWD:/in" postgres:17 psql "$PGURL" -v ON_ERROR_STOP=1 -f /in/scripts/sql/restore-prelude.sql
+          # Certains objets propres à la plateforme Supabase peuvent échouer ; les données sont vérifiées à l'étape suivante.
+          docker run --rm --network host -v "$PWD:/in" postgres:17 pg_restore --no-owner --no-privileges -n public -n auth -d "$PGURL" /in/db.dump || true
+
+      - name: Verify restored data
+        run: |
+          set -euo pipefail
+          docker run --rm --network host -v "$PWD:/in" postgres:17 psql "$PGURL" -At -f /in/scripts/sql/backup-counts.sql > actual.json
+          echo "expected: $(cat expected.json)"
+          echo "actual:   $(cat actual.json)"
+          node scripts/compare-counts.mts expected.json actual.json
+          node scripts/record-backup.mts restore_test succeeded "$KEY"
+
+      - name: Record failure
+        if: failure()
+        run: node scripts/record-backup.mts restore_test failed "${KEY:-}" "" "" "Restore test run $GITHUB_RUN_ID failed"

@@ -1,0 +1,13 @@
+# Configuration minimale pour le CLI Supabase (développement local et tests RLS en CI).
+project_id = "still-here"
+
+[db]
+major_version = 17
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+enable_signup = true
+
+[auth.email]
+enable_confirmations = true

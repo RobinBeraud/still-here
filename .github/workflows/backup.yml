@@ -1,0 +1,70 @@
+name: Backup
+
+# Sauvegarde externe chiffrée, indépendante du projet Supabase (docs/BACKUP.md).
+# GitHub n'est qu'un exécuteur : AUCUNE donnée utilisateur n'est stockée comme artefact.
+on:
+  schedule:
+    - cron: "17 2 * * *" # quotidien — RPO cible <= 24 h
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+      BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION || 'auto' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Dump database (pg_dump 17, custom format)
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          # Comptages de référence (pris AVANT le dump : le dump contient au moins ces lignes)
+          docker run --rm -v "$PWD:/in" postgres:17 psql "$SUPABASE_DB_URL" -At -f /in/scripts/sql/backup-counts.sql > counts.json
+          docker run --rm -v "$PWD:/out" postgres:17 pg_dump "$SUPABASE_DB_URL" -Fc --no-owner -f /out/db.dump
+          cat counts.json
+
+      - name: Encrypt and upload
+        run: |
+          set -euo pipefail
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" -o db.dump.gpg db.dump
+          SHA=$(sha256sum db.dump.gpg | cut -d' ' -f1)
+          SIZE=$(stat -c%s db.dump.gpg)
+          COUNTS=$(base64 -w0 counts.json)
+          KEY="database/daily/$STAMP.dump.gpg"
+          aws s3 cp db.dump.gpg "s3://$BACKUP_S3_BUCKET/$KEY" --endpoint-url "$BACKUP_S3_ENDPOINT" --metadata "sha256=$SHA,counts=$COUNTS"
+          # Copies hebdomadaire / mensuelle (rétention différenciée via règles de cycle de vie du bucket)
+          if [ "$(date -u +%u)" = "7" ]; then aws s3 cp db.dump.gpg "s3://$BACKUP_S3_BUCKET/database/weekly/$STAMP.dump.gpg" --endpoint-url "$BACKUP_S3_ENDPOINT"; fi
+          if [ "$(date -u +%d)" = "01" ]; then aws s3 cp db.dump.gpg "s3://$BACKUP_S3_BUCKET/database/monthly/$STAMP.dump.gpg" --endpoint-url "$BACKUP_S3_ENDPOINT"; fi
+          node scripts/record-backup.mts database succeeded "s3://$BACKUP_S3_BUCKET/$KEY" "$SIZE" "$SHA"
+          rm -f db.dump db.dump.gpg
+
+      - name: Media backup (incremental, encrypted)
+        run: node scripts/backup-media.mts
+
+      - name: Record failure
+        if: failure()
+        run: node scripts/record-backup.mts database failed "" "" "" "GitHub Actions run $GITHUB_RUN_ID failed"
