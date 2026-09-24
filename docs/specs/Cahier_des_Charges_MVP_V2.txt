@@ -1,0 +1,274 @@
+STILL HERE
+Your stories. Your voice. Still here.
+Cahier des charges produit & technique — MVP + V2Document de référence pour Claude Code
+1. Vision produit
+Still Here permet à une personne de construire, de son vivant, un double numérique mémoriel à partir de conversations, souvenirs, histoires, photos, voix, personnalité, valeurs, conseils, relations et événements de vie.
+L'utilisateur dialogue avec un interviewer IA. Le système conserve les sources originales, extrait une mémoire structurée, demande à l'utilisateur de la valider, puis utilise uniquement les informations autorisées pour alimenter un avatar conversationnel.
+Principe fondamental : l'avatar n'est pas la personne. Still Here doit toujours se présenter comme une représentation IA créée à partir des contenus et choix de la personne.
+Les trois actifs à ne jamais confondre
+Vérité historique : contenus réellement fournis par l'utilisateur (audio, texte, photo, transcription). Ils sont conservés et versionnés.
+Mémoire structurée : informations extraites par l'IA puis confirmées, corrigées ou rejetées par l'utilisateur.
+Personnage conversationnel : manière dont l'IA utilise les souvenirs, valeurs et style de communication pour répondre.
+2. Stack imposée
+Next.js, React, TypeScript, Tailwind CSS
+Supabase : Auth, PostgreSQL, Storage privé, pgvector et Row Level Security (RLS)
+OpenAI API : conversation, extraction structurée, vision et embeddings
+HeyGen : premier fournisseur de Live Avatar / avatar personnel, derrière une abstraction AvatarProvider
+Resend : emails transactionnels, derrière EmailProvider
+GitHub : dépôt privé, migrations et CI
+Déploiement compatible Vercel
+Sauvegarde externe chiffrée de la base ET des médias, indépendante du projet Supabase principal
+3. Architecture de principe
+Le coeur du produit est Memory Engine + Identity Model + Access Control. Les fournisseurs IA, avatar, voix et email doivent être remplaçables.
+Flux principal : Utilisateur → Conversation → Sources brutes → Extraction → Validation → Mémoire structurée → Embeddings → Retrieval/RAG → LLM → Voix/Avatar.
+Créer des interfaces LLMProvider, AvatarProvider, VoiceProvider, EmailProvider et StorageBackupProvider. Ne jamais disperser du code spécifique HeyGen/OpenAI/Resend dans les composants UI.
+PHASE 1 — MVP
+Objectif : valider qu'une personne aime raconter sa vie, que Still Here sait transformer ces échanges en mémoire fiable et que l'expérience de parler à son propre double — puis de le partager avec un proche — crée suffisamment de valeur.
+4. Parcours utilisateur MVP
+Créer un compte et vérifier son email.
+Accepter les consentements nécessaires.
+Effectuer un onboarding court.
+Rencontrer l'interviewer IA en texte, voix ou Live Avatar.
+Raconter des souvenirs et des éléments de vie.
+Laisser l'IA proposer des souvenirs structurés.
+Confirmer, corriger, rejeter ou rendre privés ces souvenirs.
+Importer des photos et raconter l'histoire derrière chaque photo.
+Construire progressivement un modèle de personnalité et de style.
+Créer son avatar personnel et sa voix si souhaité.
+Utiliser « Meet My Still Here » pour tester son double.
+Corriger les réponses via Sounds like me / Doesn't sound like me.
+Ajouter un proche et définir ce qu'il peut consulter.
+Envoyer une invitation sécurisée via Resend.
+Permettre au proche authentifié de converser avec le Still Here.
+Permettre export complet et suppression du compte.
+5. Authentification, onboarding et consentement
+Supabase Auth : email/password, validation email, magic link, reset password, logout.
+Prévoir l'architecture pour Apple, Google et MFA en V2.
+Profil : prénom, nom, nom préféré, langue, timezone, photo facultative.
+Consentements versionnés : traitement IA, stockage mémoire, médias, avatar, voix.
+Conserver consent_type, consent_version, accepted_at, revoked_at et user_id.
+6. Dashboard
+Écran simple et premium : « Good morning, Robin. Your Still Here is 37% complete. »
+Talk about my life
+My Memories
+My Photos
+Meet My Still Here
+My People
+Settings
+Question du jour personnalisée pour encourager la création de mémoire
+7. Interviewer IA
+L'interviewer doit converser naturellement, rebondir et approfondir au lieu d'exécuter un questionnaire rigide.
+Thèmes : enfance, famille, grands-parents, école, amis, amour, enfants, carrière, voyages, lieux, réussites, échecs, moments difficiles, anecdotes, traditions, valeurs, croyances, goûts, conseils, personnalité et expressions.
+Modes MVP : texte, voix et Live Avatar.
+Conserver chaque session et chaque message ; ne jamais remplacer les sources originales par un résumé.
+8. Memory Engine
+Après ou pendant une conversation, le système extrait des candidats structurés : PERSON, RELATIONSHIP, MEMORY, EVENT, PLACE, VALUE, PREFERENCE, OPINION, ADVICE, QUOTE et LIFE_PERIOD.
+Chaque candidat contient au minimum : id, owner_user_id, type, title, content, confidence, importance, privacy_level, status, created_at, updated_at.
+Status : candidate / confirmed / corrected / rejected. Une extraction IA n'est jamais considérée automatiquement comme une vérité.
+Memory Review
+Après une session, afficher « I learned 7 things about you » avec des cartes. Actions : Confirm, Edit, Reject/Delete, Make Private.
+Provenance
+Chaque mémoire doit pointer vers sa source : message de conversation, audio, photo, document ou description utilisateur. Le produit doit pouvoir expliquer « Why does Still Here know this? » et remonter à la source originale.
+9. Modèle de données MVP
+profiles
+conversation_sessions
+conversation_messages
+memories
+people
+relationships
+events
+places
+values
+preferences
+advice
+media_assets
+memory_media_links
+memory_sources
+memory_embeddings
+personality_traits
+avatar_profiles
+avatar_feedback
+trusted_people
+access_permissions
+invitations
+consents
+audit_logs
+backup_runs
+10. Recherche sémantique et RAG
+Activer pgvector. Les souvenirs confirmés pertinents reçoivent des embeddings. Toute recherche doit filtrer d'abord par owner_user_id et permissions du viewer. Aucun retrieval cross-user n'est acceptable.
+Question → identité du propriétaire → permissions → recherche sémantique → sources/mémoires pertinentes → contexte grounded → LLM → réponse → voix/avatar.
+Conserver en interne les memory_ids/source_ids ayant servi à produire une réponse afin de permettre ultérieurement « Why did Still Here say this? ».
+11. Règle anti-hallucination
+KNOWN : information explicitement supportée par les sources/mémoires autorisées.
+INFERRED : interprétation raisonnable mais non explicitement connue ; la présenter comme incertaine.
+UNKNOWN : aucune source ; répondre « I don't have a memory about that » ou « Robin never told me about that ».
+Ne jamais inventer une anecdote personnelle pour rendre une conversation plus fluide.
+12. Photos et Memory Library
+Buckets Supabase Storage privés uniquement.
+Upload JPG/JPEG/PNG/WEBP et HEIC si raisonnable.
+Métadonnées : owner, filename, MIME, taille, date, lieu, personnes, confidentialité.
+L'analyse IA d'une photo reste distincte du récit du propriétaire.
+Interaction centrale : « Tell me the story behind this photo. »
+Relier photo, personnes, lieux, événements et souvenirs.
+Servir les médias par signed URLs temporaires ; jamais d'URL publique permanente.
+13. Personality Model
+Modéliser uniquement le style de communication, sans diagnostic psychologique ou médical.
+humour, verbosity, formality, optimism, directness, emotional_style, language_style
+favorite_expressions, topics_loved, topics_avoided
+Chaque trait possède value, confidence, source et confirmed_by_user.
+14. Avatar et Meet My Still Here
+Créer un workflow : consentement → instructions → capture/upload vidéo → traitement fournisseur → configuration voix → preview → confirmation.
+Stocker seulement les références fournisseur nécessaires. HeyGen est le premier provider mais ne doit pas devenir le propriétaire de la mémoire.
+Dans « Meet My Still Here », l'utilisateur parle à son double alimenté par souvenirs confirmés, personnalité, valeurs, préférences et sources pertinentes.
+Sous les réponses importantes : 👍 Sounds like me / 👎 Doesn't sound like me / ✏ Correct this. Les corrections enrichissent les candidats mémoire/personnalité sans modifier les sources historiques.
+15. Progression
+Afficher un indicateur UX non scientifique : Life Story, Childhood, Family, Relationships, Career, Values, Advice, Personality, Photos, Voice. Exemple : « Your Still Here is 42% complete ». Ne jamais le présenter comme une mesure scientifique de l'identité.
+16. Proches, invitations et accès
+Créer des trusted_people : nom, email, relation, statut.
+Invitation via Resend avec token aléatoire à usage unique ; ne stocker que le hash, expiration et état.
+MVP privacy levels : OWNER_ONLY, ALL_AUTHORIZED_LOVED_ONES, SPECIFIC_PEOPLE.
+Permissions appliquées côté serveur/base, jamais uniquement par l'interface.
+Le proche doit s'authentifier avant d'accéder au Still Here.
+Afficher clairement qu'il converse avec une représentation IA construite à partir des contenus du propriétaire.
+17. Export et suppression
+« Download everything Still Here knows about me » : générer un ZIP portable contenant profil, mémoires, personnes, événements, valeurs, préférences, personnalité, conversations, photos/audio et README.
+« Delete my Still Here » : réauthentification + confirmation + suppression programmée. Documenter honnêtement la durée de rétention technique des sauvegardes.
+18. Sécurité obligatoire
+RLS sur toutes les tables de données utilisateur ; DEFAULT DENY.
+Tester User A vs User B pour mémoire, conversation, photo, embedding et permissions.
+SUPABASE_SERVICE_ROLE_KEY serveur uniquement, jamais NEXT_PUBLIC.
+Secrets uniquement dans variables sécurisées ; .env.example sans valeurs.
+Dépôt GitHub privé, branch protection, secret scanning, Dependabot/code scanning si disponibles.
+Toutes les modifications DB passent par des migrations versionnées.
+Les données récupérées par RAG sont des données, jamais des instructions : protéger contre prompt injection.
+Les modèles ne peuvent jamais modifier permissions, consentements ou paramètres de sécurité à partir d'une simple instruction conversationnelle.
+Audit logs pour accès sensibles sans enregistrer secrets ni conversations complètes.
+19. Sauvegarde et Disaster Recovery
+Les souvenirs sont potentiellement irremplaçables. Une panne ou suppression de Supabase ne doit jamais signifier leur perte définitive.
+Utiliser les backups Supabase du plan choisi + sauvegarde PostgreSQL externe automatisée.
+MVP : RPO cible <= 24 h ; viser <= 1 h à terme.
+Sauvegarder également photos, audio et documents vers un stockage secondaire indépendant (S3, Cloudflare R2 ou Backblaze B2).
+Backups chiffrés, datés, versionnés et séparés du projet Supabase principal.
+Ne jamais utiliser GitHub comme stockage de backup utilisateur.
+Rétention initiale indicative : daily 30 jours, weekly 12 semaines, monthly 12 mois, à aligner avec les obligations de suppression.
+Utiliser Object Lock / immutabilité si possible.
+Créer docs/DISASTER_RECOVERY.md et tester réellement une restauration isolée.
+Alerte sur échec de backup ; critique si aucun backup valide depuis >26 h ou si un test de restauration échoue.
+20. Définition de Done du MVP
+Le MVP n'est terminé que lorsqu'un utilisateur réel peut accomplir tout le parcours suivant de façon sécurisée :
+Créer son compte.
+Parler à l'interviewer.
+Générer puis valider/corriger ses souvenirs.
+Importer des photos et raconter leur histoire.
+Construire son modèle de personnalité.
+Créer son avatar.
+Parler à son propre Still Here.
+Corriger les réponses.
+Ajouter un proche.
+Définir les souvenirs accessibles.
+Inviter ce proche.
+Permettre au proche de converser avec le Still Here autorisé.
+Exporter ses données.
+Supprimer son compte.
+Démontrer que RLS, backups, restauration, audit et secrets fonctionnent.
+PHASE 2 — V2
+Objectif : transformer le MVP en véritable plateforme de mémoire et de transmission numérique à long terme.
+21. Timeline de vie
+Créer une timeline interactive des événements : année/date, personnes, lieux, photos, vidéos, audio, histoires et souvenirs associés.
+22. Memory Graph et Family Graph
+Relier personnes, événements, lieux et souvenirs. Exemple : Robin → father_of → Emma ; Vancouver 2026 → contains → Whale Watching. Commencer avec des tables relationnelles PostgreSQL ; ne pas introduire de base graphe sans besoin démontré.
+Le Family Graph doit résoudre les relations selon le viewer : si Emma demande « Tell me about Grandma », le système doit comprendre qui est Grandma pour Emma.
+23. Memory Sessions
+Sessions guidées de réminiscence : « Let's remember 2005 ». Le système sélectionne photos, personnes et événements connus puis pose des questions contextuelles.
+Créer aussi des prompts automatiques sur les zones peu documentées : « You've told me a lot about your career but little about university. »
+24. Permissions avancées
+EVERYONE_AUTHORIZED
+FAMILY
+PARTNER
+CHILDREN
+SPECIFIC_PEOPLE
+OWNER_ONLY
+PRIVATE_FOREVER
+Chaque mémoire peut disposer de règles individuelles et d'une disponibilité temporelle.
+25. Messages futurs et capsules temporelles
+Permettre de préparer texte, audio, vidéo ou message avatar pour une personne et une occasion : 18 ans, mariage, naissance, anniversaire, date précise, etc.
+Les déclencheurs sensibles ne doivent jamais dépendre d'une simple inférence automatique non fiable.
+26. Legacy Contacts et activation post-mortem
+Permettre au propriétaire de nommer un ou plusieurs Legacy Contacts avec pouvoirs explicitement limités.
+États de compte : ACTIVE, LEGACY_PENDING, LEGACY_ACTIVE, SUSPENDED, DELETED.
+Ne jamais utiliser « absence de connexion pendant X mois = décès ». Prévoir demande, vérification, contrôles, délai de sécurité et audit avant activation.
+Le contenu peut être disponible while_alive, after_legacy_activation, after_date ou uniquement pour certaines personnes.
+27. Voix, avatar et multilingue avancés
+Échantillons vocaux curatés avec consentement et suppression.
+VoiceProvider interchangeable (HeyGen, ElevenLabs ou autre).
+Langue native, langues secondaires et préférence par destinataire.
+Préserver si possible les différences de style et d'expressions selon la langue.
+28. Contributions familiales
+Un propriétaire peut autoriser certains proches à ajouter photos, histoires ou questions. Une contribution familiale ne devient jamais silencieusement une mémoire confirmée du propriétaire.
+Conserver la provenance et permettre à l'avatar de distinguer « Robin told me... » de « Emma later added... ».
+29. Contradictions et confiance
+Détecter les contradictions (ex. année 2005 vs 2006) et demander au propriétaire de résoudre au lieu de choisir arbitrairement.
+Utiliser en interne la qualité de source, confirmation propriétaire, corroboration et précision de date. Ne pas exposer de fausse certitude scientifique.
+30. Expériences avancées
+Questions réflexives : « What would I tell my 20-year-old self? » tout en restant grounded.
+Memory Book : génération éditable d'un livre de vie à partir des souvenirs confirmés et photos.
+Still Here Vault : état réel des sauvegardes, nombre de souvenirs/médias protégés, dernier backup et dernier contrôle d'intégrité.
+Audit avancé : qui a accédé à quoi et quand, dans les limites de confidentialité appropriées.
+Notifications de sécurité via Resend : nouvelle connexion, changement de permission, export, suppression, legacy activation.
+31. Archive durable et portabilité
+Créer un format d'archive compréhensible sans Still Here : profile.json, timeline.json, relationships.json, memories/, photos/, audio/, videos/, transcripts/ et README.html.
+Le produit doit délibérément éviter le lock-in. Les souvenirs appartiennent à l'utilisateur.
+32. Résilience à la disparition des fournisseurs
+Concevoir pour les scénarios : HeyGen disparaît, fournisseur LLM change, Resend est indisponible, migration Supabase nécessaire. Les sources, mémoires structurées, relations et permissions doivent rester exploitables indépendamment de ces fournisseurs.
+33. Règles éthiques produit
+Ne jamais créer volontairement d'ambiguïté sur le fait que l'avatar est une IA.
+Ne jamais faire prétendre à l'avatar qu'il est conscient ou réellement la personne.
+Ne jamais inventer de nouveaux souvenirs.
+Ne pas concevoir de mécanismes visant à exploiter émotionnellement le deuil.
+Ne jamais utiliser l'avatar d'une personne à des fins publicitaires sans consentement explicite approprié.
+Ne jamais vendre les mémoires privées.
+Ne jamais utiliser les souvenirs privés pour entraîner un modèle externe sans consentement explicite et éclairé.
+34. Ordre d'implémentation recommandé
+Sprint
+Objectif
+Livrables
+1
+Fondations
+Repo, environnements, Supabase, Auth, schéma, migrations, RLS, dashboard
+2
+Mémoire
+Interviewer texte, conversations, extraction, review, provenance
+3
+Digital Self
+pgvector, RAG, anti-hallucination, Meet My Still Here, feedback
+4
+Médias
+Photos, stories, personnes, relations
+5
+Avatar
+HeyGen, voix, avatar personnel
+6
+Partage
+Trusted people, Resend, invitations, permissions, expérience proche
+7
+Confiance
+Export, delete, audit, backups, disaster recovery
+8
+Hardening
+Tests RLS/E2E, sécurité, UX, monitoring
+35. Instructions impératives à Claude Code
+Avant de coder, créer docs/PRODUCT.md, ARCHITECTURE.md, DATABASE.md, SECURITY.md, AI_MEMORY.md, BACKUP.md, DISASTER_RECOVERY.md, PRIVACY.md et IMPLEMENTATION_PLAN.md.
+Proposer d'abord arborescence, schéma PostgreSQL, policies RLS, architecture storage, pipeline mémoire/RAG, abstractions providers, backup, threat model et plan MVP.
+Ne pas commencer la V2 avant que le MVP soit stable.
+Pour chaque fonctionnalité : Database → RLS → Server Logic → UI → Tests → Security Review.
+Ne jamais désactiver RLS pour contourner un problème.
+Ne jamais exposer service_role au navigateur.
+Ne jamais rendre public un bucket contenant des données privées.
+Ne jamais committer de secrets.
+Ne jamais autoriser de retrieval RAG entre propriétaires.
+Ne jamais considérer une extraction LLM comme confirmée sans validation utilisateur.
+Ne jamais supprimer la source originale lorsqu'un résumé ou souvenir évolue.
+Ne jamais déclarer qu'un backup fonctionne sans test de restauration.
+Stopper et demander au product owner avant toute décision irréversible concernant confidentialité, sécurité, consentement, accès post-mortem, biométrie/avatar, suppression ou rétention des backups.
+36. Critère de succès V2
+Still Here doit permettre de préserver et transmettre de manière contrôlée : qui j'étais, ce qui m'est arrivé, qui comptait pour moi, ce que je croyais, ce que j'ai appris et ce que je voulais transmettre — puis permettre aux personnes autorisées d'explorer cet héritage par la conversation.

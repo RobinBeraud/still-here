@@ -1,0 +1,172 @@
+STILL HERE
+Business Model, Pricing & Payments
+Addendum au cahier des charges MVP + V2Your stories. Your voice. Still here.
+1. Objectif business
+Still Here doit être conçu dès le MVP comme un produit commercial premium, pas comme un simple SaaS à faible abonnement mensuel. La valeur vendue est la création, la préservation et la transmission d'une mémoire numérique personnelle sur le long terme.
+Le modèle économique doit couvrir deux réalités différentes : une forte valeur initiale lors de la création du Still Here et des coûts récurrents de conservation, sauvegarde, IA, avatar, voix et maintenance.
+2. Positionnement prix à tester
+Offre
+Prix test
+Cible
+Contenu
+Discover
+0 €
+Découverte
+Interview limitée, ~10 souvenirs, sans avatar personnel
+Still Here
+299 € + 79 €/an
+Individuel
+Mémoire, photos, avatar/voix, 1 proche, quota IA
+Legacy
+699 € avec 5 ans inclus puis ~99 €/an
+Premium / famille
+Plus de proches, capsules et fonctions legacy
+Forever
+À partir de 1 490 €
+Très premium
+Transmission longue durée, capacité et services renforcés
+Ces tarifs sont des hypothèses à tester commercialement, pas des prix définitifs. L'architecture doit permettre de modifier prix, quotas et bundles sans changement profond du code.
+3. Principe de facturation
+Éviter de positionner le produit uniquement comme un abonnement mensuel classique.
+Séparer le droit de conservation des données du coût d'utilisation intensive de l'IA/avatar.
+Un échec de paiement ne doit jamais provoquer une suppression immédiate des souvenirs.
+Prévoir une période de grâce et un mode conservation/restreint.
+Les conversations Live Avatar peuvent être soumises à un quota annuel ou à des packs de minutes supplémentaires.
+Le stockage au-delà d'un quota peut devenir une option payante.
+4. Offre cadeau
+Prévoir dès l'architecture une offre « Gift Still Here / Family Edition ». Un enfant ou proche achète le produit pour un parent ou grand-parent, puis lui envoie une invitation d'activation.
+Prix test indicatif : 499–599 € selon contenu et éventuel coffret physique.
+Acheteur et bénéficiaire peuvent être deux comptes différents.
+Le bénéficiaire reste propriétaire de ses données et de ses consentements.
+Le payeur n'obtient aucun accès aux souvenirs par le seul fait d'avoir payé.
+Prévoir gift_code/token, expiration, activation et statut.
+V2 : coffret physique avec carte/QR d'activation.
+5. Paiement — stack
+Utiliser Stripe comme premier PaymentProvider, derrière une abstraction afin de ne pas coupler toute la logique métier au fournisseur.
+Stripe Checkout
+Cartes bancaires
+Apple Pay / Google Pay lorsque disponibles via Stripe
+Factures et reçus
+Codes promotionnels
+Remboursements
+Abonnements annuels
+Paiements one-shot
+Customer Portal
+Webhooks Stripe signés
+Gestion des paiements échoués et périodes de grâce
+6. Architecture billing
+Créer une abstraction PaymentProvider. L'application ne doit pas utiliser directement Stripe dans la logique métier.
+Créer au minimum les entités : plans, subscriptions, payments, usage_records, entitlements, billing_events, gift_purchases et promo/redemption si nécessaire.
+Ne pas coder les droits à partir du nom du plan
+Éviter : if plan === 'legacy'. Utiliser des entitlements indépendants :
+can_create_avatar
+can_use_live_avatar
+max_loved_ones
+avatar_minutes_included
+avatar_minutes_remaining
+storage_limit_bytes
+future_messages_enabled
+legacy_mode_enabled
+advanced_backup_enabled
+memory_book_enabled
+7. Quotas et coûts variables
+Instrumenter dès le MVP les coûts réels par utilisateur afin de connaître la marge.
+Minutes Live Avatar
+Minutes audio / synthèse vocale
+Tokens LLM entrée/sortie
+Embeddings
+Stockage photos/audio/vidéo
+Volume de backup
+Emails transactionnels
+Exports et traitements lourds
+Créer usage_records et une couche UsageService. Les quotas doivent être calculés côté serveur et jamais uniquement dans l'UI.
+8. Expérience de checkout
+Parcours recommandé : pricing → choix de l'offre → authentification/création de compte → Stripe Checkout → webhook confirmé → activation des entitlements → onboarding Still Here.
+Ne jamais activer un plan premium uniquement parce que le navigateur revient sur une success_url. La source de vérité est le webhook Stripe vérifié.
+9. Webhooks
+Vérifier systématiquement la signature Stripe.
+Rendre les handlers idempotents.
+Stocker event_id et empêcher le double traitement.
+Gérer checkout/session completed, payment succeeded/failed, subscription updated/canceled et refund.
+Journaliser les événements métier sans enregistrer de données de carte.
+Prévoir retry et dead-letter/reconciliation pour les événements non traités.
+10. Paiement échoué et conservation
+Règle produit essentielle : une carte expirée ne doit pas faire disparaître une vie numérique.
+États possibles : ACTIVE → PAST_DUE → GRACE_PERIOD → PRESERVATION_ONLY → éventuellement CLOSED selon politique contractuelle.
+Pendant la période de grâce : prévenir via Resend et permettre la mise à jour du moyen de paiement.
+En mode Preservation Only : conserver les données mais limiter les fonctions coûteuses comme Live Avatar.
+Ne jamais supprimer automatiquement les souvenirs à la première échéance impayée.
+Définir juridiquement et techniquement une politique explicite de conservation à long terme.
+11. MVP — fonctionnalités commerciales obligatoires
+Page Pricing
+Au moins une offre payante réelle
+Stripe Checkout
+Paiement one-shot et/ou abonnement annuel selon offre choisie
+Customer Portal
+Webhooks sécurisés
+Entitlements
+Quotas Live Avatar
+Usage tracking
+Factures/reçus
+Codes promotionnels
+Gestion d'impayé
+Période de grâce
+Mode Preservation Only
+Dashboard billing dans Settings
+Annulation sans suppression automatique des souvenirs
+12. V2 — monétisation
+Gift Still Here / Family Edition
+Cartes cadeaux et codes d'activation
+Packs de minutes Live Avatar
+Stockage additionnel
+Capsules temporelles premium
+Memory Book numérique/physique
+Offres familiales multi-utilisateurs
+Offre Forever / long-term preservation
+Éventuels services concierge : interviews assistées, numérisation de photos, montage de mémoire
+Partenariats B2B2C à étudier ultérieurement
+13. Unit economics
+Créer un tableau de bord interne permettant de suivre par plan et par utilisateur : revenu encaissé, revenu récurrent, coûts IA/avatar/stockage/email/backup, marge brute estimée, minutes consommées et stockage utilisé.
+Ne jamais dépendre uniquement du dashboard Stripe pour comprendre l'économie du produit : conserver une comptabilité applicative des droits et usages, tout en laissant Stripe source de vérité pour les événements de paiement.
+14. Données et sécurité paiement
+Still Here ne stocke jamais de numéro de carte complet, CVC ou données PCI sensibles.
+Utiliser les interfaces hébergées/tokenisées de Stripe.
+Les clés Stripe sont des secrets serveur.
+STRIPE_WEBHOOK_SECRET est séparé de STRIPE_SECRET_KEY.
+Les tables billing utilisent RLS et exposent uniquement les informations nécessaires au propriétaire.
+Les fonctions admin de remboursement/ajustement doivent être auditées.
+15. Tables proposées
+plans: id, code, name, active, billing_model, metadata
+subscriptions: id, user_id, provider, provider_customer_id, provider_subscription_id, status, current_period_end
+payments: id, user_id, provider_payment_id, amount, currency, status, created_at
+entitlements: id, user_id, key, value, source, starts_at, expires_at
+usage_records: id, user_id, metric, quantity, provider, occurred_at
+billing_events: id, provider_event_id, type, status, received_at, processed_at
+gift_purchases: id, purchaser_user_id, recipient_email, gift_token_hash, plan_code, status, expires_at, activated_by
+16. Pricing UX
+La page ne doit pas vendre « des tokens IA ». Elle doit vendre la transmission et la conservation. Les limites techniques doivent être formulées simplement.
+Exemple : « 10 heures de conversations vidéo par an » plutôt que « 600 crédits avatar ». Le détail des limites doit rester transparent.
+17. Mesures MVP
+Taux visite → création de compte
+Taux création de compte → première interview
+Taux première interview → première mémoire confirmée
+Nombre de souvenirs créés à J7/J30
+Taux Meet My Still Here
+Taux conversion free → paid
+ARPU / revenu initial
+Coût variable par utilisateur
+Minutes avatar consommées
+Taux d'invitation d'un proche
+Taux d'activation du proche
+Churn/renouvellement annuel lorsque mesurable
+18. Instructions additionnelles à Claude Code
+Ajouter docs/BILLING.md et docs/PRICING_EXPERIMENTS.md.
+Implémenter PaymentProvider avant StripePaymentProvider.
+Implémenter EntitlementService et UsageService comme couches métier indépendantes.
+Ne jamais donner un entitlement sur la seule base d'un redirect client.
+Tester les webhooks en double, hors ordre et en retry.
+Tester expiration d'abonnement, paiement échoué, remboursement, annulation et période de grâce.
+Ne jamais supprimer des données mémorielles comme effet direct d'un webhook de paiement.
+Demander validation du Product Owner avant toute règle pouvant entraîner la suppression ou l'inaccessibilité définitive des souvenirs.
+19. Décision produit à conserver ouverte
+Le modèle exact — 299 € + annuel, 699 € avec plusieurs années incluses, Forever à 1 490 €+, ou autre — doit être validé par expérimentation. L'architecture doit permettre de tester ces modèles sans migration lourde ni changement de logique d'accès.
