@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" role="img" aria-label="Still Here — Your stories. Your voice. Still here.">
+  <defs>
+    <radialGradient id="glow" cx="78%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#e0a676" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#e0a676" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1512"/>
+      <stop offset="1" stop-color="#2a201b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="400" rx="28" fill="url(#bg)"/>
+  <rect width="1280" height="400" rx="28" fill="url(#glow)"/>
+  <!-- ripples -->
+  <g fill="none" stroke="#f1e3d3" stroke-opacity="0.16">
+    <circle cx="1000" cy="180" r="60"/>
+    <circle cx="1000" cy="180" r="110"/>
+    <circle cx="1000" cy="180" r="165"/>
+    <circle cx="1000" cy="180" r="225"/>
+  </g>
+  <circle cx="1000" cy="180" r="34" fill="none" stroke="#f1e3d3" stroke-width="6"/>
+  <circle cx="1000" cy="180" r="10" fill="#e0a676"/>
+  <!-- wordmark -->
+  <text x="80" y="118" font-family="Georgia, 'Times New Roman', serif" font-size="26" letter-spacing="6" fill="#c9b8aa">STILL HERE</text>
+  <text x="80" y="200" font-family="Georgia, 'Times New Roman', serif" font-size="64" fill="#f1e9e1">Your stories.</text>
+  <text x="80" y="270" font-family="Georgia, 'Times New Roman', serif" font-size="64" fill="#f1e9e1">Your voice.</text>
+  <text x="80" y="340" font-family="Georgia, 'Times New Roman', serif" font-size="64" font-style="italic" fill="#e0a676">Still here.</text>
+</svg>

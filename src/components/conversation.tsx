@@ -52,7 +52,9 @@ export function Conversation({
   const liveSessionRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [messages]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
 
   // ------------------------------------------------------------ output (voice / avatar)
   const speak = useCallback(
@@ -257,7 +259,7 @@ export function Conversation({
           <video ref={videoRef} autoPlay playsInline className="aspect-video w-full object-cover" />
           <button type="button" onClick={() => void stopAvatar()} className="btn-ghost absolute top-3 right-3 py-1.5 text-xs">End video</button>
           {mode !== "interview" && (
-            <p className="absolute bottom-2 left-3 rounded bg-black/50 px-2 py-1 text-xs text-white">AI representation of {ownerName}</p>
+            <p className="absolute bottom-2 left-3 rounded bg-black/50 px-2 py-1 text-xs text-white">AI representation of {mode === "self" ? "you" : ownerName}</p>
           )}
         </div>
       )}
@@ -291,7 +293,7 @@ export function Conversation({
               void send(input);
             }
           }}
-          placeholder={mode === "interview" ? "Tell your story…" : `Ask ${ownerName}'s Still Here…`}
+          placeholder={mode === "interview" ? "Tell your story…" : mode === "self" ? "Ask your Still Here…" : `Ask ${ownerName}'s Still Here…`}
           disabled={busy || recording}
         />
         {channel !== "text" && (

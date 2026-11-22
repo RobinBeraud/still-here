@@ -19,7 +19,9 @@ export function OnboardingForm({
 }) {
   const [state, action] = useActionState(completeOnboarding, undefined);
   const [tz, setTz] = useState("UTC");
-  useEffect(() => setTz(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), []);
+  useEffect(() => {
+    setTz(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  }, []);
 
   return (
     <form action={action} className="space-y-8">
